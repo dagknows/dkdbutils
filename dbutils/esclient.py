@@ -16,10 +16,10 @@ def randomStringDigits(stringLength=16):
     return x
 
 class DB(object):
-    def __init__(self, current_index, esurl="http://localhost:9200", index_version="_alias"):
+    def __init__(self, current_index, esurl="http://localhost:9200", index_suffix=""):
         self.esurl = esurl
         self.current_index = current_index
-        self.index_version = index_version
+        self.index_suffix = index_suffix
         self.custom_id_field = "id"
         self.maxPageSize = 9999
 
@@ -27,8 +27,12 @@ class DB(object):
         self.applyDocPatch = None # lambda(doc, patch): print "No new doc validation on patch"
 
     @property
+    def fullIndexName(self):
+        return f"{self.current_index}{self.index_suffix}"
+
+    @property
     def elasticIndex(self):
-        out = f"{self.esurl}/{self.current_index}{self.index_version}"
+        out = f"{self.esurl}/{self.current_index}{self.index_suffix}"
         print("Index: ", out)
         return out
 
@@ -42,7 +46,7 @@ class DB(object):
         if not doc: raise UserException(f"Doc not found {docid}")
         return doc[self.custom_id_field], doc
 
-    def getDocById(self, docid, throw_on_missing=False):
+    def get(self, docid, throw_on_missing=False):
         docid = str(docid).strip()
         path = self.elasticIndex+"/_doc/"+docid
         resp = requests.get(path).json()
@@ -61,9 +65,9 @@ class DB(object):
 
     def deleteAll(self):
         for t in self.listDocs()["results"]:
-            self.deleteDoc(t[self.custom_id_field])
+            self.delete(t[self.custom_id_field])
 
-    def searchDocs(self, query):
+    def search(self, query):
         query = query or {}
         if "size" not in query: query["size"] = self.maxPageSize
         query["seq_no_primary_term"] = True
@@ -81,21 +85,40 @@ class DB(object):
             h["_source"]["metadata"]["_primary_term"] = h.get("_primary_term", 0)
         return {"results": [h["_source"] for h in hits]}
 
-    def listDocs(self, sort=None, query=None):
-        # TODO - pagination
-        query = {}
-        if sort: query["sort"] = sort
-        if query: query["query"] = query
-        return self.searchDocs(query)
+    def listAll(self, page_size=None):
+        return self.search(page_size=page_size)
+
+    def search(self, page_key=None, page_size=None, sort=None, query=None):
+        page_size = page_size or self.maxPageSize
+        q = {
+            "size": page_size,
+            "seq_no_primary_term": True,
+        }
+        if sort: q["sort"] = sort
+        if query: q["query"] = query
+        path = self.elasticIndex+"/_search/"
+        resp = requests.get(path, json=q).json()
+        if "hits" not in resp: return []
+        hits = resp["hits"]
+        if "hits" not in hits: return []
+        hits = hits["hits"]
+        for h in hits:
+            h["_source"][self.custom_id_field] = h["_id"]
+            if "metadata" not in h["_source"]:
+                h["_source"]["metadata"] = {}
+            h["_source"]["metadata"]["_seq_no"] = h.get("_seq_no", 0)
+            h["_source"]["metadata"]["_primary_term"] = h.get("_primary_term", 0)
+        return {"results": [h["_source"] for h in hits]}
+
 
     def batchGet(self, ids):
         # TODO - is there a batch get or id "IN" query in elastic?
         # https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-ids-query.html
         query = { "query": { "ids" : { "values" : ids } } }
-        results = self.searchDocs(query=query)
+        results = self.search(query=query)
         return results
 
-    def createDoc(self, doc_params):
+    def put(self, doc_params):
         if not self.validateNewDoc:
             print("self.validateNewDoc missing")
             doc = doc_params
@@ -104,6 +127,8 @@ class DB(object):
 
         # The main db writer
         path = self.elasticIndex+"/_doc/"
+        if self.custom_id_field in doc_params:
+            path += doc_params[self.custom_id_field]
         resp = requests.post(path, json=doc).json()
         log("Created Doc: ", resp)
         if "error" in resp:
@@ -111,7 +136,7 @@ class DB(object):
         doc[self.custom_id_field] = resp["_id"]
         return doc
 
-    def deleteDoc(self, doc_or_id):
+    def delete(self, doc_or_id):
         docid, doc = self.ensureDoc(doc_or_id)
 
         log(f"Now deleting doc {docid}")
@@ -127,25 +152,7 @@ class DB(object):
         else:
             doc, extras = self.applyDocPatch(doc, patch)
 
-    def searchDocs(self, query):
-        query = query or {}
-        if "size" not in query: query["size"] = 9999
-        query["seq_no_primary_term"] = True
-        path = self.elasticIndex+"/_search/"
-        resp = requests.get(path, json=query).json()
-        if "hits" not in resp: return []
-        hits = resp["hits"]
-        if "hits" not in hits: return []
-        hits = hits["hits"]
-        for h in hits:
-            h["_source"][self.custom_id_field] = h["_id"]
-            if "metadata" not in h["_source"]:
-                h["_source"]["metadata"] = {}
-            h["_source"]["metadata"]["_seq_no"] = h.get("_seq_no", 0)
-            h["_source"]["metadata"]["_primary_term"] = h.get("_primary_term", 0)
-        return {"results": [h["_source"] for h in hits]}
-
-    def saveDocOptimistically(self, doc):
+    def saveOptimistically(self, doc):
         tid = doc[self.custom_id_field]
         doc["updated_at"] = time.time()
         seq_no = doc["metadata"]["_seq_no"]
@@ -158,3 +165,104 @@ class DB(object):
         else:
             log("SaveDoc: ", resp)
         return doc
+
+    def getMappings(self):
+        path = self.elasticIndex
+        resp = requests.get(path).json()
+        return resp.get(self.fullIndexName, {}).get("mappings", {})
+
+    def getVersion(self):
+        """ Gets the version of the index as stored in the mappings.  Returns -1 if no version found. """
+        mappings = self.getMappings()
+        return mappings.get("_meta", {}).get("version", -1)
+
+    def copy_between(self, src_index_name, dst_index_name, on_conflict, index_info):
+        """ Reindexing is a huuuuuuuge pain.  This method is meant to be "generic" and growing over time and be as "forgiving" as possible (at the expense of speed)
+
+        The following things are done:
+
+        1. Check the current version of an index mapping
+            * Could be "empty" as the user never created a "default" index
+            * Could be in an incompatible state
+            * both above are really kinda same because ES defaults most fields to "TEXT"
+
+        2a. If dest index does not exist - create with the new mappings
+        2b. If dest index exists then ensure its mapping match the new mapping (fail if not equal)
+            * Checking for mappings matching is just by checking "version numbers" as a full deep check 
+              may be flaky (as elastic may itself add extra attribs to a mapping)
+
+        3. While no conflicts:
+                a reindex from src -> dest indexes
+                b for conflicting docs:
+                    * apply the on_conflict method
+                    * [Not sure if needed] - Remove all items from dest table as you may not be able to an index with entries
+                c goto (a)
+
+        4. Mark dst_index as "_alias"
+        """
+        src_index = self.getIndex(src_index_name)
+        if src_index is None:
+            # Doesnt exist so just create dest and get out
+            return self.putIndex(dest_index, index_info)
+
+        dest_index = self.getIndex(dest_index_name)
+        if dest_index is None:
+            # Doesnt exist so just create dest and get out
+            dest_index = self.putIndex(dest_index, index_info)
+
+        print("EnsuringIndex for: ", org, index_name, index_url, version)
+        resp = requests.get(index_url)
+        if resp.status_code == 404:
+            print("Creating new index for org: ", index_url, org, file=sys.stdout)
+            return self.putIndex(index_url, index_table, version)
+
+    def getIndex(self, index_name):
+        index_url = f"{self.esurl}/{index_name}"
+        resp = requests.get(index_url)
+        if resp.status_code == 404:
+            return None
+        return resp.json()[index_name]
+
+    def deleteIndex(self, index_name):
+        index_url = f"{self.esurl}/{index_name}"
+        resp = requests.delete(index_url)
+
+    def putIndex(self, index_name, index_info):
+        """ putIndex creates a new index.  If index already exists, this call will fail """
+        index_url = f"{self.esurl}/{index_name}"
+        resp = requests.put(index_url, json=index_info)
+        print(f"Created new index ({index_url}): ", resp.status_code, resp.content)
+        if resp.status_code == 200 and resp.json()["acknowledged"]:
+            return self.getIndex(index_name)
+        return None
+
+    def listIndexes(self):
+        return requests.get(self.esurl + "/_aliases").json()
+
+    def reindexTo(self, dst, on_conflict=None):
+        """ Indexes the current index into another index. """
+        src = self.fullIndexName
+        reindex_json = {
+            "source" : { "index" : src },
+            "dest" : { "index" : dst },
+            "conflicts": "proceed",
+        }
+        resp = requests.post(self.esurl + '/_reindex?refresh=true', json=reindex_json).json()
+        failures = resp.get("failures", [])
+
+        for failed_doc in failures:
+            docid, doc = self.ensureDoc(failed_doc["id"])
+            resolved = on_conflict(doc)
+            print("Remapping {src}.{docid} -> {dst}.{docid}: ")
+            print("     Conflict Doc: ", doc)
+            dstdb.put(resolved)
+            print("     Resolved Doc: ", resolved)
+
+        print(f"Reindex ({src} -> {dst}) response: ", reindex_json, resp.status_code, resp.content)
+        return resp.json()
+
+
+def testit():
+    import ipdb ; ipdb.set_trace()
+    db = DB("mydoc")
+    db.getIndex("v1")
