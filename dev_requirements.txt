@@ -1,0 +1,7 @@
+ipdb
+build
+twine
+bumpver
+ipython
+coverage
+pip-tools

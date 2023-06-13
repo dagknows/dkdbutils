@@ -1,0 +1,36 @@
+name: dagknows
+versions:
+- name: v1
+  created_at: 1681895259.307321
+  versiontag: v1
+  packages:
+  - name: common_image
+    repo_url: git@github-dagmeister:dagknows/common_image
+    versiontag: common_image_1681895259_3073
+  - name: documentation
+    repo_url: git@github-dagmeister:dagknows/documentation
+    versiontag: documentation_1681895259_307307
+  - name: req_router
+    repo_url: git@github-dagmeister:dagknows/req_router
+    versiontag: req_router_1681895259_3073092
+  - name: conv_mgr
+    repo_url: git@github-dagmeister:dagknows/conv_mgr
+    versiontag: conv_mgr_1681895259_307311
+  - name: conv_sse
+    repo_url: git@github-dagmeister:dagknows/conv_sse
+    versiontag: conv_sse_1681895259_307312
+  - name: proxy_sse
+    repo_url: git@github-dagmeister:dagknows/proxy_sse
+    versiontag: proxy_sse_1681895259_307314
+  - name: nlp
+    repo_url: git@github-dagmeister:dagknows/nlp
+    versiontag: nlp_1681895259_3073149
+  - name: dag
+    repo_url: git@github-dagmeister:dagknows/dag
+    versiontag: dag_1681895259_307316
+  - name: ansi_processing
+    repo_url: git@github-dagmeister:dagknows/ansi_processing
+    versiontag: ansi_processing_1681895259_307318
+  - name: settings
+    repo_url: git@github-dagmeister:dagknows/settings
+    versiontag: settings_1681895259_307319
