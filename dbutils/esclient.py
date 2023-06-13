@@ -23,8 +23,8 @@ class DB(object):
         self.custom_id_field = "id"
         self.maxPageSize = 9999
 
-        self.validateNewTask = None # lambda(task_params): print "No new task validation"
-        self.applyTaskPatch = None # lambda(task, patch): print "No new task validation on patch"
+        self.validateNewDoc = None # lambda(doc_params): print "No new doc validation"
+        self.applyDocPatch = None # lambda(doc, patch): print "No new doc validation on patch"
 
     @property
     def elasticIndex(self):
@@ -104,7 +104,7 @@ class DB(object):
 
         # The main db writer
         path = self.elasticIndex+"/_doc/"
-        resp = requests.post(path, json=task).json()
+        resp = requests.post(path, json=doc).json()
         log("Created Doc: ", resp)
         if "error" in resp:
             raise DBException(resp["error"])
@@ -127,7 +127,7 @@ class DB(object):
         else:
             doc, extras = self.applyDocPatch(doc, patch)
 
-    def searchEntities(self, query):
+    def searchDocs(self, query):
         query = query or {}
         if "size" not in query: query["size"] = 9999
         query["seq_no_primary_term"] = True
@@ -145,7 +145,7 @@ class DB(object):
             h["_source"]["metadata"]["_primary_term"] = h.get("_primary_term", 0)
         return {"results": [h["_source"] for h in hits]}
 
-    def saveDocOptimistically(self, task):
+    def saveDocOptimistically(self, doc):
         tid = doc[self.custom_id_field]
         doc["updated_at"] = time.time()
         seq_no = doc["metadata"]["_seq_no"]
