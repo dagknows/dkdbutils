@@ -27,6 +27,10 @@ class DB(object):
         self.applyDocPatch = None # lambda(doc, patch): print "No new doc validation on patch"
 
     @property
+    def index_info(self):
+        return self.getIndex(self.fullIndexName)
+
+    @property
     def fullIndexName(self):
         return f"{self.current_index}{self.index_suffix}"
 
@@ -39,7 +43,7 @@ class DB(object):
     def ensureDoc(self, doc_or_id):
         if type(doc_or_id) is str:
             docid = doc_or_id
-            doc = self.getDocById(docid.strip())
+            doc = self.get(docid.strip())
         else:
             doc = doc_or_id
             docid = doc[self.custom_id_field]
@@ -239,7 +243,7 @@ class DB(object):
     def listIndexes(self):
         return requests.get(self.esurl + "/_aliases").json()
 
-    def reindexTo(self, dst, on_conflict=None):
+    def reindexTo(self, dst):
         """ Indexes the current index into another index. """
         src = self.fullIndexName
         reindex_json = {
@@ -247,9 +251,12 @@ class DB(object):
             "dest" : { "index" : dst },
             "conflicts": "proceed",
         }
-        resp = requests.post(self.esurl + '/_reindex?refresh=true', json=reindex_json).json()
-        failures = resp.get("failures", [])
+        resp = requests.post(self.esurl + '/_reindex?refresh=true', json=reindex_json)
 
+        respjson = resp.json()
+        """
+        failures = respjson.get("failures", [])
+        dstdb = DB(dst)
         for failed_doc in failures:
             docid, doc = self.ensureDoc(failed_doc["id"])
             resolved = on_conflict(doc)
@@ -257,9 +264,10 @@ class DB(object):
             print("     Conflict Doc: ", doc)
             dstdb.put(resolved)
             print("     Resolved Doc: ", resolved)
+        """
 
         print(f"Reindex ({src} -> {dst}) response: ", reindex_json, resp.status_code, resp.content)
-        return resp.json()
+        return respjson
 
 
 def testit():
