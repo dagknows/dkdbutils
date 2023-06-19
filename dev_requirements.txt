@@ -1,7 +1,7 @@
 ipdb
+ipython
 build
 twine
 bumpver
-ipython
 coverage
 pip-tools
