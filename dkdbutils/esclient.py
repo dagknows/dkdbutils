@@ -167,6 +167,9 @@ class DB(object):
             log("SaveDoc Error: ", resp["error"])
             raise DBException(resp["error"])
         else:
+            # Update the version so subsequent optimistic writes can use it
+            doc["metadata"]["_seq_no"] = resp["_seq_no"]
+            doc["metadata"]["_primary_term"] = resp["_primary_term"]
             log("SaveDoc: ", resp)
         return doc
 
