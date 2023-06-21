@@ -102,9 +102,9 @@ class DB(object):
         if query: q["query"] = query
         path = self.elasticIndex+"/_search/"
         resp = requests.get(path, json=q).json()
-        if "hits" not in resp: return []
+        if "hits" not in resp: return {"results": []}
         hits = resp["hits"]
-        if "hits" not in hits: return []
+        if "hits" not in hits: return {"results": []}
         hits = hits["hits"]
         for h in hits:
             h["_source"][self.custom_id_field] = h["_id"]
