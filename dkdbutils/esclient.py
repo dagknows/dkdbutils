@@ -68,7 +68,7 @@ class DB(object):
         return out
 
     def deleteAll(self):
-        for t in self.listDocs()["results"]:
+        for t in self.list()["results"]:
             self.delete(t[self.custom_id_field])
 
     def search(self, query):
