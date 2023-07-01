@@ -50,11 +50,19 @@ class DB(object):
         if not doc: raise UserException(f"Doc not found {docid}")
         return doc[self.custom_id_field], doc
 
+    def esrequest(self, url, method="GET", payload=None, throw_if_error=True):
+        methfunc = geteattr(requests, method.lower())
+        if payload:
+            resp = methfunc(url, json=payload).json()
+        else:
+            resp = methfunc(url, json=payload).json()
+        if "error" in resp and throw_if_error: raise DBException(resp["error"])
+        return resp
+
     def get(self, docid, throw_on_missing=False):
         docid = str(docid).strip()
         path = self.elasticIndex+"/_doc/"+docid
-        resp = requests.get(path).json()
-        if "error" in resp: raise DBException(resp["error"])
+        resp = self.esrequest(path)
         if not resp["found"] or "_source" not in resp:
             if throw_on_missing:
                 raise UserException(f"Invalid docid: {docid}")
@@ -76,7 +84,7 @@ class DB(object):
         if "size" not in query: query["size"] = self.maxPageSize
         query["seq_no_primary_term"] = True
         path = self.elasticIndex+"/_search/"
-        resp = requests.get(path, json=query).json()
+        resp = self.esrequest.get(path, payload=query)
         if "hits" not in resp: return []
         hits = resp["hits"]
         if "hits" not in hits: return []
@@ -101,7 +109,7 @@ class DB(object):
         if sort: q["sort"] = sort
         if query: q["query"] = query
         path = self.elasticIndex+"/_search/"
-        resp = requests.get(path, json=q).json()
+        resp = self.esrequest(path, payload=q)
         if "hits" not in resp: return {"results": []}
         hits = resp["hits"]
         if "hits" not in hits: return {"results": []}
@@ -133,7 +141,7 @@ class DB(object):
         path = self.elasticIndex+"/_doc/"
         if self.custom_id_field in doc_params:
             path += doc_params[self.custom_id_field]
-        resp = requests.post(path, json=doc).json()
+        resp = self.esrequest(path, "POST", payload=q)
         log("Created Doc: ", resp)
         if "error" in resp:
             raise DBException(resp["error"])
@@ -145,8 +153,8 @@ class DB(object):
 
         log(f"Now deleting doc {docid}")
         path = self.elasticIndex+"/_doc/"+docid
-        resp = requests.delete(path)
-        return resp.json()
+        resp = self.esrequest(path, "DELETE")
+        return resp
 
     def applyPatch(self, doc_or_id, patch):
         docid, doc = self.ensureDoc(doc_or_id)
@@ -162,20 +170,17 @@ class DB(object):
         seq_no = doc["metadata"]["_seq_no"]
         primary_term = doc["metadata"]["_primary_term"]
         path = f"{self.elasticIndex}/_doc/{tid}?if_seq_no={seq_no}&if_primary_term={primary_term}"
-        resp = requests.post(path, json=doc).json()
-        if "error" in resp:
-            log("SaveDoc Error: ", resp["error"])
-            raise DBException(resp["error"])
-        else:
-            # Update the version so subsequent optimistic writes can use it
-            doc["metadata"]["_seq_no"] = resp["_seq_no"]
-            doc["metadata"]["_primary_term"] = resp["_primary_term"]
-            log("SaveDoc: ", resp)
+        resp = self.esrequest(path, "POST", doc)
+
+        # Update the version so subsequent optimistic writes can use it
+        doc["metadata"]["_seq_no"] = resp["_seq_no"]
+        doc["metadata"]["_primary_term"] = resp["_primary_term"]
+        log("SaveDoc: ", resp)
         return doc
 
     def getMappings(self):
         path = self.elasticIndex
-        resp = requests.get(path).json()
+        resp = self.esrequest(path)
         return resp.get(self.fullIndexName, {}).get("mappings", {})
 
     def getVersion(self):
