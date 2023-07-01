@@ -141,10 +141,7 @@ class DB(object):
         path = self.elasticIndex+"/_doc/"
         if self.custom_id_field in doc_params:
             path += doc_params[self.custom_id_field]
-        resp = self.esrequest(path, "POST", payload=q)
-        log("Created Doc: ", resp)
-        if "error" in resp:
-            raise DBException(resp["error"])
+        resp = self.esrequest(path, "POST", payload=doc)
         doc[self.custom_id_field] = resp["_id"]
         return doc
 
