@@ -22,6 +22,7 @@ class DB(object):
         self.index_suffix = index_suffix
         self.custom_id_field = "id"
         self.maxPageSize = 9999
+        self.log_timings = True
 
         self.validateNewDoc = None # lambda(doc_params): print "No new doc validation"
         self.applyDocPatch = None # lambda(doc, patch): print "No new doc validation on patch"
@@ -51,13 +52,18 @@ class DB(object):
         return doc[self.custom_id_field], doc
 
     def esrequest(self, url, method="GET", payload=None, throw_if_error=True):
+        start_time = time.time()
         methfunc = getattr(requests, method.lower())
         if payload:
-            resp = methfunc(url, json=payload).json()
+            resp = methfunc(url, json=payload)
         else:
-            resp = methfunc(url, json=payload).json()
-        if "error" in resp and throw_if_error: raise DBException(resp["error"])
-        return resp
+            resp = methfunc(url, json=payload)
+        if self.log_timings:
+            end_time = time.time()
+            log(f"{method} {url}, Status: {resp.status_code}, Time Taken: {end_time - start_time} ms")
+        resp = res.json()
+        if "error" in resp_json and throw_if_error: raise DBException(resp_json["error"])
+        return resp_json
 
     def get(self, docid, throw_on_missing=False):
         docid = str(docid).strip()
