@@ -51,7 +51,7 @@ class DB(object):
         return doc[self.custom_id_field], doc
 
     def esrequest(self, url, method="GET", payload=None, throw_if_error=True):
-        methfunc = geteattr(requests, method.lower())
+        methfunc = getattr(requests, method.lower())
         if payload:
             resp = methfunc(url, json=payload).json()
         else:
