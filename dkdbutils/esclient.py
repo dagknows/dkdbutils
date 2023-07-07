@@ -85,24 +85,6 @@ class DB(object):
         for t in self.list()["results"]:
             self.delete(t[self.custom_id_field])
 
-    def search(self, query):
-        query = query or {}
-        if "size" not in query: query["size"] = self.maxPageSize
-        query["seq_no_primary_term"] = True
-        path = self.elasticIndex+"/_search/"
-        resp = self.esrequest.get(path, payload=query)
-        if "hits" not in resp: return []
-        hits = resp["hits"]
-        if "hits" not in hits: return []
-        hits = hits["hits"]
-        for h in hits:
-            h["_source"][self.custom_id_field] = h["_id"]
-            if "metadata" not in h["_source"]:
-                h["_source"]["metadata"] = {}
-            h["_source"]["metadata"]["_seq_no"] = h.get("_seq_no", 0)
-            h["_source"]["metadata"]["_primary_term"] = h.get("_primary_term", 0)
-        return {"results": [h["_source"] for h in hits]}
-
     def listAll(self, page_size=None):
         return self.search(page_size=page_size)
 
