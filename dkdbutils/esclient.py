@@ -16,10 +16,9 @@ def randomStringDigits(stringLength=16):
     return x
 
 class DB(object):
-    def __init__(self, current_index, esurl="http://localhost:9200", index_suffix=""):
+    def __init__(self, current_index, esurl="http://localhost:9200"):
         self.esurl = esurl
         self.current_index = current_index
-        self.index_suffix = index_suffix
         self.custom_id_field = "id"
         self.maxPageSize = 9999
         self.log_timings = True
@@ -29,15 +28,11 @@ class DB(object):
 
     @property
     def index_info(self):
-        return self.getIndex(self.fullIndexName)
-
-    @property
-    def fullIndexName(self):
-        return f"{self.current_index}{self.index_suffix}"
+        return self.getIndex(self.current_index)
 
     @property
     def elasticIndex(self):
-        out = f"{self.esurl}/{self.current_index}{self.index_suffix}"
+        out = f"{self.esurl}/{self.current_index}"
         print("Index: ", out)
         return out
 
@@ -166,14 +161,14 @@ class DB(object):
     def getMappings(self):
         path = self.elasticIndex
         resp = self.esrequest(path)
-        return resp.get(self.fullIndexName, {}).get("mappings", {})
+        return resp.get(self.current_index, {}).get("mappings", {})
 
     def getVersion(self):
         """ Gets the version of the index as stored in the mappings.  Returns -1 if no version found. """
         mappings = self.getMappings()
         return mappings.get("_meta", {}).get("version", -1)
 
-    def copy_between(self, src_index_name, dst_index_name, on_conflict, index_info):
+    def _copy_between(self, src_index_name, dst_index_name, on_conflict, index_info):
         """ Reindexing is a huuuuuuuge pain.  This method is meant to be "generic" and growing over time and be as "forgiving" as possible (at the expense of speed)
 
         The following things are done:
@@ -238,7 +233,7 @@ class DB(object):
 
     def reindexTo(self, dst):
         """ Indexes the current index into another index. """
-        src = self.fullIndexName
+        src = self.current_index
         reindex_json = {
             "source" : { "index" : src },
             "dest" : { "index" : dst },
@@ -262,6 +257,15 @@ class DB(object):
         print(f"Reindex ({src} -> {dst}) response: ", reindex_json, resp.status_code, resp.content)
         return respjson
 
+
+    def aliasIndex(self, alias_name):
+        log("Trying to add alias: ", alias_name, " to index: ", self.current_index)
+        alias_json = {
+            "actions" : [
+                { "add" : { "index" : self.current_index, "alias" : alias_name } }
+            ]
+        }
+        resp_alias = requests.post(self.esurl + "/_aliases", json=alias_json)
 
 def testit():
     import ipdb ; ipdb.set_trace()
