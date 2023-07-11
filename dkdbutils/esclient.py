@@ -226,7 +226,7 @@ class DB(object):
         print(f"Created new index ({index_url}): ", resp.status_code, resp.content)
         if resp.status_code == 200 and resp.json()["acknowledged"]:
             return self.getIndex(index_name)
-        return None
+        raise Exception("Failed to create index: ", resp.json())
 
     def listIndexes(self):
         return requests.get(self.esurl + "/_aliases").json()
