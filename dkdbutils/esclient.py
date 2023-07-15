@@ -128,9 +128,8 @@ class DB(object):
         doc[self.custom_id_field] = resp["_id"]
         return doc
 
-    def delete(self, doc_or_id):
-        docid, doc = self.ensureDoc(doc_or_id)
-
+    def delete(self, docid): # doc_or_id):
+        # docid, doc = self.ensureDoc(doc_or_id)
         log(f"Now deleting doc {docid}")
         path = self.elasticIndex+"/_doc/"+docid
         resp = self.esrequest(path, "DELETE")
