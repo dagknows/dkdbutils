@@ -109,11 +109,18 @@ class DB(object):
 
 
     def batchGet(self, ids):
-        # TODO - is there a batch get or id "IN" query in elastic?
-        # https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-ids-query.html
-        query = { "query": { "ids" : { "values" : ids } } }
-        results = self.search(query=query)
-        return results
+        path = self.elasticIndex+"/_mget/"
+        docs = self.esrequest(path, "GET", payload={
+            "docs": [ {"_id": id} for id in ids ]
+        })["docs"]
+
+        for doc in docs:
+            doc["_source"][self.custom_id_field] = doc["_id"]
+            if "metadata" not in doc["_source"]:
+                doc["_source"]["metadata"] = {}
+            doc["_source"]["metadata"]["_seq_no"] = doc.get("_seq_no", 0)
+            doc["_source"]["metadata"]["_primary_term"] = doc.get("_primary_term", 0)
+        return {d["_id"]: d["_source"] for d in docs}
 
     def put(self, doc_params):
         if not self.validateNewDoc:
