@@ -107,8 +107,10 @@ class DB(object):
         return self.search(page_size=page_size)
 
     def search(self, page_key=None, page_size=None, sort=None, query=None):
+        page_key = page_key or 0
         page_size = page_size or self.maxPageSize
         q = {
+            "from": page_key,
             "size": page_size,
             "seq_no_primary_term": True,
         }
