@@ -16,10 +16,9 @@ def randomStringDigits(stringLength=16):
     return x
 
 class DB(object):
-    def __init__(self, current_index, esurl="http://localhost:9200", index_suffix=""):
+    def __init__(self, current_index, esurl="http://localhost:9200"):
         self.esurl = esurl
         self.current_index = current_index
-        self.index_suffix = index_suffix
         self.custom_id_field = "id"
         self.maxPageSize = 9999
         self.log_timings = True
@@ -29,15 +28,11 @@ class DB(object):
 
     @property
     def index_info(self):
-        return self.getIndex(self.fullIndexName)
-
-    @property
-    def fullIndexName(self):
-        return f"{self.current_index}{self.index_suffix}"
+        return self.getIndex(self.current_index)
 
     @property
     def elasticIndex(self):
-        out = f"{self.esurl}/{self.current_index}{self.index_suffix}"
+        out = f"{self.esurl}/{self.current_index}"
         print("Index: ", out)
         return out
 
@@ -84,24 +79,6 @@ class DB(object):
     def deleteAll(self):
         for t in self.listAll()["results"]:
             self.delete(t[self.custom_id_field])
-
-    def search(self, query):
-        query = query or {}
-        if "size" not in query: query["size"] = self.maxPageSize
-        query["seq_no_primary_term"] = True
-        path = self.elasticIndex+"/_search/"
-        resp = self.esrequest.get(path, payload=query)
-        if "hits" not in resp: return []
-        hits = resp["hits"]
-        if "hits" not in hits: return []
-        hits = hits["hits"]
-        for h in hits:
-            h["_source"][self.custom_id_field] = h["_id"]
-            if "metadata" not in h["_source"]:
-                h["_source"]["metadata"] = {}
-            h["_source"]["metadata"]["_seq_no"] = h.get("_seq_no", 0)
-            h["_source"]["metadata"]["_primary_term"] = h.get("_primary_term", 0)
-        return {"results": [h["_source"] for h in hits]}
 
     def listAll(self, page_size=None):
         return self.search(page_size=page_size)
@@ -153,9 +130,9 @@ class DB(object):
         doc[self.custom_id_field] = resp["_id"]
         return doc
 
-    def delete(self, doc_or_id):
-        docid, doc = self.ensureDoc(doc_or_id)
-
+    def delete(self, docid):
+        # docid, doc = self.get(doc_or_id)
+        # if not doc: return None
         log(f"Now deleting doc {docid}")
         path = self.elasticIndex+"/_doc/"+docid
         resp = self.esrequest(path, "DELETE")
@@ -186,14 +163,14 @@ class DB(object):
     def getMappings(self):
         path = self.elasticIndex
         resp = self.esrequest(path)
-        return resp.get(self.fullIndexName, {}).get("mappings", {})
+        return resp.get(self.current_index, {}).get("mappings", {})
 
     def getVersion(self):
         """ Gets the version of the index as stored in the mappings.  Returns -1 if no version found. """
         mappings = self.getMappings()
         return mappings.get("_meta", {}).get("version", -1)
 
-    def copy_between(self, src_index_name, dst_index_name, on_conflict, index_info):
+    def _copy_between(self, src_index_name, dst_index_name, on_conflict, index_info):
         """ Reindexing is a huuuuuuuge pain.  This method is meant to be "generic" and growing over time and be as "forgiving" as possible (at the expense of speed)
 
         The following things are done:
@@ -251,14 +228,14 @@ class DB(object):
         print(f"Created new index ({index_url}): ", resp.status_code, resp.content)
         if resp.status_code == 200 and resp.json()["acknowledged"]:
             return self.getIndex(index_name)
-        return None
+        raise Exception("Failed to create index: ", resp.json())
 
     def listIndexes(self):
         return requests.get(self.esurl + "/_aliases").json()
 
     def reindexTo(self, dst):
         """ Indexes the current index into another index. """
-        src = self.fullIndexName
+        src = self.current_index
         reindex_json = {
             "source" : { "index" : src },
             "dest" : { "index" : dst },
@@ -282,6 +259,15 @@ class DB(object):
         print(f"Reindex ({src} -> {dst}) response: ", reindex_json, resp.status_code, resp.content)
         return respjson
 
+
+    def aliasIndex(self, alias_name):
+        log("Trying to add alias: ", alias_name, " to index: ", self.current_index)
+        alias_json = {
+            "actions" : [
+                { "add" : { "index" : self.current_index, "alias" : alias_name } }
+            ]
+        }
+        resp_alias = requests.post(self.esurl + "/_aliases", json=alias_json)
 
 def testit():
     import ipdb ; ipdb.set_trace()
