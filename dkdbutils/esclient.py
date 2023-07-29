@@ -138,8 +138,6 @@ class DB(object):
         return doc
 
     def delete(self, docid):
-        # docid, doc = self.get(doc_or_id)
-        # if not doc: return None
         log(f"Now deleting doc {docid}")
         path = self.elasticIndex+"/_doc/"+docid
         resp = self.esrequest(path, "DELETE")
