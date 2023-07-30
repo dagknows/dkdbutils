@@ -122,7 +122,7 @@ class DB(object):
                     doc["_source"]["metadata"] = {}
                 doc["_source"]["metadata"]["_seq_no"] = doc.get("_seq_no", 0)
                 doc["_source"]["metadata"]["_primary_term"] = doc.get("_primary_term", 0)
-                out[d["_id"]] = doc["_source"]
+                out[doc["_id"]] = doc["_source"]
         return out
 
     def put(self, doc_params):
