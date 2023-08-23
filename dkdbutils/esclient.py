@@ -85,7 +85,8 @@ class DB(object):
 
     def count(self, query=None, accurate=False):
         path = self.elasticIndex+"/_search/"
-        payload = {"size": 0, "track_total_hits": accurate}
+        payload = {"size": 0}
+        if accurate: payload["track_total_hits"] = accurate
         if query: payload["query"] = query
         resp = self.esrequest(path, payload=payload)
         return resp
