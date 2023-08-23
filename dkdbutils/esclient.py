@@ -125,7 +125,7 @@ class DB(object):
                 out[doc["_id"]] = doc["_source"]
         return out
 
-    def put(self, doc_params):
+    def put(self, doc_params, refresh="true"):
         if not self.validateNewDoc:
             print("self.validateNewDoc missing")
             doc = doc_params
@@ -136,13 +136,17 @@ class DB(object):
         path = self.elasticIndex+"/_doc/"
         if self.custom_id_field in doc_params:
             path += doc_params[self.custom_id_field]
+        if refresh:
+            path += f"?refresh={refresh}"
         resp = self.esrequest(path, "POST", payload=doc)
         doc[self.custom_id_field] = resp["_id"]
         return doc
 
-    def delete(self, docid):
+    def delete(self, docid, refresh="true"):
         log(f"Now deleting doc {docid}")
         path = self.elasticIndex+"/_doc/"+docid
+        if refresh:
+            path += f"?refresh={refresh}"
         resp = self.esrequest(path, "DELETE")
         return resp
 
@@ -154,12 +158,14 @@ class DB(object):
         else:
             doc, extras = self.applyDocPatch(doc, patch)
 
-    def saveOptimistically(self, doc):
+    def saveOptimistically(self, doc, refreh="true"):
         tid = doc[self.custom_id_field]
         doc["updated_at"] = time.time()
         seq_no = doc["metadata"]["_seq_no"]
         primary_term = doc["metadata"]["_primary_term"]
         path = f"{self.elasticIndex}/_doc/{tid}?if_seq_no={seq_no}&if_primary_term={primary_term}"
+        if refresh:
+            path += f"&refresh={refresh}"
         resp = self.esrequest(path, "POST", doc)
 
         # Update the version so subsequent optimistic writes can use it
