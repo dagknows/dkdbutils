@@ -83,6 +83,13 @@ class DB(object):
     def listAll(self, page_size=None):
         return self.search(page_size=page_size)
 
+    def count(self, query=None, accurate=False):
+        path = self.elasticIndex+"/_search/"
+        payload = {"size": 0, "track_total_hits": accurate}
+        if query: payload["query"] = query
+        resp = self.esrequest(path, payload=payload)
+        return resp
+
     def search(self, page_key=None, page_size=None, sort=None, query=None):
         page_key = page_key or 0
         page_size = page_size or self.maxPageSize
