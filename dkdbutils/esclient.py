@@ -125,7 +125,7 @@ class DB(object):
                 out[doc["_id"]] = doc["_source"]
         return out
 
-    def put(self, doc_params, refresh="true"):
+    def put(self, doc_params, refresh=""):
         if not self.validateNewDoc:
             print("self.validateNewDoc missing")
             doc = doc_params
@@ -142,7 +142,7 @@ class DB(object):
         doc[self.custom_id_field] = resp["_id"]
         return doc
 
-    def delete(self, docid, refresh="true"):
+    def delete(self, docid, refresh=""):
         log(f"Now deleting doc {docid}")
         path = self.elasticIndex+"/_doc/"+docid
         if refresh:
@@ -158,7 +158,7 @@ class DB(object):
         else:
             doc, extras = self.applyDocPatch(doc, patch)
 
-    def saveOptimistically(self, doc, refreh="true"):
+    def saveOptimistically(self, doc, refresh=""):
         tid = doc[self.custom_id_field]
         doc["updated_at"] = time.time()
         seq_no = doc["metadata"]["_seq_no"]
