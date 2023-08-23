@@ -184,6 +184,37 @@ class DB(object):
         mappings = self.getMappings()
         return mappings.get("_meta", {}).get("version", -1)
 
+    def diffIndex(self, another_index):
+        """ Gets differences between the entries in the current index and of a target index.
+        Returns 3 dictionaries (added, removed, changed):
+            added - All entries in another that are not current index
+            removed - All entries NOT in another index that are in the current index
+            changed - Entries (by ID) that are in both indexes but their values differ.
+        """
+        added = {}
+        removed = {}
+        changed = {}
+
+        curr = self.current_index
+        l1 = {entry[self.custom_id_field]: entry for entry in self.listAll()["results"]}
+
+        self.current_index = another_index
+        l2 = {entry[self.custom_id_field]: entry for entry in self.listAll()["results"]}
+        self.current_index = curr
+
+        for k,v in l1.items():
+            if k not in l2:
+                removed[k] = v
+            elif v != l2[k]:
+                changed[k] = (v, l2[k])
+
+        for k,v in l2.items():
+            if k not in l1:
+                added[k] = v
+
+
+        return added, removed, changed
+
     def _copy_between(self, src_index_name, dst_index_name, on_conflict, index_info):
         """ Reindexing is a huuuuuuuge pain.  This method is meant to be "generic" and growing over time and be as "forgiving" as possible (at the expense of speed)
 
