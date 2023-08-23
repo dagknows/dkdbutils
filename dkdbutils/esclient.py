@@ -215,6 +215,86 @@ class DB(object):
 
         return added, removed, changed
 
+    def getIndex(self, index_name):
+        index_url = f"{self.esurl}/{index_name}"
+        resp = requests.get(index_url)
+        if resp.status_code == 404:
+            return None
+        return resp.json()[index_name]
+
+    def deleteIndex(self, index_name):
+        index_url = f"{self.esurl}/{index_name}"
+        resp = requests.delete(index_url)
+
+    def createIndex(self, new_index_name, new_index_info):
+        """ Create a new index if it does not exist. """
+        if self.current_index == new_index_name:
+            raise Exception("Index names must be different from current_index {self.current_index}")
+
+        new_index = self.db.getIndex(new_index_name)
+        if new_index:
+            # If index already exists fail
+            raise Exception(f"Dest index ({new_index_name}) already exists")
+        else:
+            new_index = self.putIndex(new_index_name, new_index_info)
+            if not new_index:
+                raise Exception(f"Dest index ({new_index_name}) could not be created")
+        return new_index
+
+    def putIndex(self, index_name, index_info):
+        """ putIndex creates a new index.  If index already exists, this call will fail """
+        index_url = f"{self.esurl}/{index_name}"
+        resp = requests.put(index_url, json=index_info)
+        print(f"Created new index ({index_url}): ", resp.status_code, resp.content)
+        if resp.status_code == 200 and resp.json()["acknowledged"]:
+            return self.getIndex(index_name)
+        raise Exception("Failed to create index: ", resp.json())
+
+    def listIndexes(self):
+        return requests.get(self.esurl + "/_aliases").json()
+
+    def reindexTo(self, dst_index_name, onconflicts="proceed"):
+        """ Indexes the current index into another index. """
+        src = self.current_index
+        reindex_json = {
+            "source" : { "index" : src },
+            "dest" : { "index" : dst_index_name },
+            "conflicts": onconflicts,
+        }
+        print(f"Reindexing from {src} -> {dst_index_name}...")
+        resp = requests.post(self.esurl + '/_reindex?refresh=true', json=reindex_json)
+        respjson = resp.json()
+        print(f"Reindex ({src} -> {dst_index_name}) response: ", reindex_json, resp.status_code, resp.content)
+
+        """
+        failures = respjson.get("failures", [])
+        dstdb = DB(dst_index_name)
+        for failed_doc in failures:
+            docid, doc = self.ensureDoc(failed_doc["id"])
+            resolved = on_conflict(doc)
+            print("Remapping {src}.{docid} -> {dst_index_name}.{docid}: ")
+            print("     Conflict Doc: ", doc)
+            dstdb.put(resolved)
+            print("     Resolved Doc: ", resolved)
+        """
+        return respjson
+
+
+    def aliasIndex(self, alias_name):
+        log("Trying to add alias: ", alias_name, " to index: ", self.current_index)
+        alias_json = {
+            "actions" : [
+                { "add" : { "index" : self.current_index, "alias" : alias_name } }
+            ]
+        }
+        resp_alias = requests.post(self.esurl + "/_aliases", json=alias_json)
+
+    def migrateToIndex(self, index_name, index_info):
+        """ Migrates data to another (NEW) index by creating it.  """
+        to_index = self.createIndex(index_name, index_info)
+        response = self.reindexTo(index_name)
+        return to_index
+
     def _copy_between(self, src_index_name, dst_index_name, on_conflict, index_info):
         """ Reindexing is a huuuuuuuge pain.  This method is meant to be "generic" and growing over time and be as "forgiving" as possible (at the expense of speed)
 
@@ -254,65 +334,6 @@ class DB(object):
         if resp.status_code == 404:
             print("Creating new index for org: ", index_url, org, file=sys.stdout)
             return self.putIndex(index_url, index_table, version)
-
-    def getIndex(self, index_name):
-        index_url = f"{self.esurl}/{index_name}"
-        resp = requests.get(index_url)
-        if resp.status_code == 404:
-            return None
-        return resp.json()[index_name]
-
-    def deleteIndex(self, index_name):
-        index_url = f"{self.esurl}/{index_name}"
-        resp = requests.delete(index_url)
-
-    def putIndex(self, index_name, index_info):
-        """ putIndex creates a new index.  If index already exists, this call will fail """
-        index_url = f"{self.esurl}/{index_name}"
-        resp = requests.put(index_url, json=index_info)
-        print(f"Created new index ({index_url}): ", resp.status_code, resp.content)
-        if resp.status_code == 200 and resp.json()["acknowledged"]:
-            return self.getIndex(index_name)
-        raise Exception("Failed to create index: ", resp.json())
-
-    def listIndexes(self):
-        return requests.get(self.esurl + "/_aliases").json()
-
-    def reindexTo(self, dst):
-        """ Indexes the current index into another index. """
-        src = self.current_index
-        reindex_json = {
-            "source" : { "index" : src },
-            "dest" : { "index" : dst },
-            "conflicts": "proceed",
-        }
-        resp = requests.post(self.esurl + '/_reindex?refresh=true', json=reindex_json)
-
-        respjson = resp.json()
-        """
-        failures = respjson.get("failures", [])
-        dstdb = DB(dst)
-        for failed_doc in failures:
-            docid, doc = self.ensureDoc(failed_doc["id"])
-            resolved = on_conflict(doc)
-            print("Remapping {src}.{docid} -> {dst}.{docid}: ")
-            print("     Conflict Doc: ", doc)
-            dstdb.put(resolved)
-            print("     Resolved Doc: ", resolved)
-        """
-
-        print(f"Reindex ({src} -> {dst}) response: ", reindex_json, resp.status_code, resp.content)
-        return respjson
-
-
-    def aliasIndex(self, alias_name):
-        log("Trying to add alias: ", alias_name, " to index: ", self.current_index)
-        alias_json = {
-            "actions" : [
-                { "add" : { "index" : self.current_index, "alias" : alias_name } }
-            ]
-        }
-        resp_alias = requests.post(self.esurl + "/_aliases", json=alias_json)
 
 def testit():
     import ipdb ; ipdb.set_trace()
