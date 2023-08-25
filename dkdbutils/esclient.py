@@ -216,8 +216,8 @@ class DB(object):
             else:
                 # Compare the two without key fields
                 v2 = l2[k]
-                if "metadata" in v: delete v["metadata"]
-                if "metadata" in v2: delete v2["metadata"]
+                if "metadata" in v: del v["metadata"]
+                if "metadata" in v2: del v2["metadata"]
                 if v != v2:
                     changed[k] = (v, v2)
 
