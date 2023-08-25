@@ -213,8 +213,13 @@ class DB(object):
         for k,v in l1.items():
             if k not in l2:
                 removed[k] = v
-            elif v != l2[k]:
-                changed[k] = (v, l2[k])
+            else:
+                # Compare the two without key fields
+                v2 = l2[k]
+                if "metadata" in v: delete v["metadata"]
+                if "metadata" in v2: delete v2["metadata"]
+                if v != v2:
+                    changed[k] = (v, v2)
 
         for k,v in l2.items():
             if k not in l1:
