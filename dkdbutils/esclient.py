@@ -279,9 +279,12 @@ class DB(object):
         resp = requests.post(self.esurl + '/_reindex?refresh=true', json=reindex_json)
         respjson = resp.json()
         print(f"Reindex ({src} -> {dst_index_name}) response: ", reindex_json, resp.status_code, resp.content)
+        failures = respjson.get("failures", [])
+        if failures:
+            print(f"Reindex Response: ", respjson)
+            print(f"Reindex Failures: ", failures)
 
         """
-        failures = respjson.get("failures", [])
         dstdb = DB(dst_index_name)
         for failed_doc in failures:
             docid, doc = self.ensureDoc(failed_doc["id"])
