@@ -267,7 +267,7 @@ class DB(object):
     def listIndexes(self):
         return requests.get(self.esurl + "/_aliases").json()
 
-    def reindexTo(self, dst_index_name, onconflicts="proceed"):
+    def reindexTo(self, dst_index_name, onconflicts="proceed", fixfunc=None):
         """ Indexes the current index into another index. """
         src = self.current_index
         reindex_json = {
@@ -282,8 +282,10 @@ class DB(object):
         failures = respjson.get("failures", [])
         if failures:
             print(f"Reindex Response: ", respjson)
-            print(f"Reindex Failures: ", failures)
-
+        for failed in failures:
+            print("Failed to reindex item: ", failed)
+            if fixfunc:
+                fixfunc(failed, db=self, src_index=src, dst_index=dst_index_name)
         """
         dstdb = DB(dst_index_name)
         for failed_doc in failures:
