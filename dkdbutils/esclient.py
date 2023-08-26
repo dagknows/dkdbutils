@@ -17,6 +17,7 @@ def randomStringDigits(stringLength=16):
 
 class DB(object):
     def __init__(self, current_index, esurl="http://localhost:9200"):
+        if esurl.endswith("/"): esurl = esurl[:-1]
         self.esurl = esurl
         self.current_index = current_index
         self.custom_id_field = "id"
