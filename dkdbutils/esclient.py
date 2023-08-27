@@ -282,20 +282,11 @@ class DB(object):
         failures = respjson.get("failures", [])
         if failures:
             print(f"Reindex Response: ", respjson)
-        for failed in failures:
-            print("Failed to reindex item: ", failed)
-            if fixfunc:
-                fixfunc(failed, db=self, src_index=src, dst_index=dst_index_name)
-        """
-        dstdb = DB(dst_index_name)
-        for failed_doc in failures:
-            docid, doc = self.ensureDoc(failed_doc["id"])
-            resolved = on_conflict(doc)
-            print("Remapping {src}.{docid} -> {dst_index_name}.{docid}: ")
-            print("     Conflict Doc: ", doc)
-            dstdb.put(resolved)
-            print("     Resolved Doc: ", resolved)
-        """
+            srcindex = DB(self.esurl, current_index=src)
+            dstindex = DB(self.esurl, current_index=dst)
+            for failed in failures:
+                print("Failed to reindex item: ", failed)
+                if fixfunc: fixfunc(failed, srcindex, dstindex)
         return respjson
 
 
