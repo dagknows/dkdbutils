@@ -103,8 +103,7 @@ class DB(object):
         if sort: q["sort"] = sort
         if knn:
             q["knn"] = knn
-            if filter: q["knn"]["filter"] = filter
-            if query: q["knn"]["query"] = query
+            if filter or query: q["knn"]["filter"] = filter or query
         elif filter:
             q["filter"] = filter
 
