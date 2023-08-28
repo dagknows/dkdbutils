@@ -92,7 +92,7 @@ class DB(object):
         resp = self.esrequest(path, payload=payload)
         return resp
 
-    def search(self, page_key=None, page_size=None, sort=None, query=None):
+    def search(self, page_key=None, page_size=None, sort=None, query=None, filter=None, knn=None):
         page_size = page_size or self.maxPageSize
         q = {
             "size": page_size,
@@ -101,6 +101,13 @@ class DB(object):
         if page_key and page_key > 0:
             q["from"] = page_key
         if sort: q["sort"] = sort
+        if knn:
+            q["knn"] = knn
+            if filter: q["knn"]["filter"] = filter
+            if query: q["knn"]["query"] = query
+        elif filter:
+            q["filter"] = filter
+
         if query: q["query"] = query
         path = self.elasticIndex+"/_search/"
         resp = self.esrequest(path, payload=q)
@@ -234,7 +241,7 @@ class DB(object):
         resp = requests.get(index_url)
         if resp.status_code == 404:
             return None
-        return resp.json()[index_name]
+        return resp.json().get(index_name, None)
 
     def deleteIndex(self, index_name):
         index_url = f"{self.esurl}/{index_name}"
