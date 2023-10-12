@@ -33,9 +33,7 @@ class DB(object):
 
     @property
     def elasticIndex(self):
-        out = f"{self.esurl}/{self.current_index}"
-        print("Index: ", out)
-        return out
+        return f"{self.esurl}/{self.current_index}"
 
     def ensureDoc(self, doc_or_id):
         if type(doc_or_id) is str:
