@@ -23,6 +23,8 @@ class DB(object):
         self.custom_id_field = "id"
         self.maxPageSize = 9999
         self.log_timings = True
+        self.before_esrequest = None
+        self.after_esrequest = None
 
         self.validateNewDoc = None # lambda(doc_params): print "No new doc validation"
         self.applyDocPatch = None # lambda(doc, patch): print "No new doc validation on patch"
@@ -47,11 +49,13 @@ class DB(object):
 
     def esrequest(self, url, method="GET", payload=None, throw_if_error=True):
         start_time = time.time()
+        if self.before_esrequest: self.before_esrequest(method, url, payload)
         methfunc = getattr(requests, method.lower())
         if payload:
             resp = methfunc(url, json=payload)
         else:
             resp = methfunc(url, json=payload)
+        if self.after_esrequest: self.after_esrequest(method, url, payload, resp)
         if self.log_timings:
             end_time = time.time()
             log(f"{method} {url}, Status: {resp.status_code}, Time Taken: {end_time - start_time} ms")
