@@ -58,7 +58,7 @@ class DB(object):
         if self.after_esrequest: self.after_esrequest(method, url, payload, resp)
         if self.log_timings:
             end_time = time.time()
-            log(f"{method} {url}, Status: {resp.status_code}, Time Taken: {end_time - start_time} ms")
+            log(f"{method} {url}, Status: {resp.status_code}, Time Taken: {end_time - start_time} seconds")
         resp_json = resp.json()
         if "error" in resp_json and throw_if_error: raise DBException(resp_json["error"])
         return resp_json
