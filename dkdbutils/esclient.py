@@ -16,9 +16,10 @@ def randomStringDigits(stringLength=16):
     return x
 
 class DB(object):
-    def __init__(self, current_index, esurl="http://localhost:9200"):
+    def __init__(self, current_index, esurl="http://localhost:9200", headers=None):
         if esurl.endswith("/"): esurl = esurl[:-1]
         self.esurl = esurl
+        self.esreq_headers = headers or {}
         self.current_index = current_index
         self.custom_id_field = "id"
         self.maxPageSize = 9999
@@ -49,13 +50,13 @@ class DB(object):
     def esrequest(self, url, method="GET", payload=None, throw_if_error=True):
         start_time = time.time()
         if self.request_maker:
-            resp = self.request_maker(method, url, payload)
+            resp = self.request_maker(method, url, payload, headers=headers=self.headers)
         else:
             methfunc = getattr(requests, method.lower())
             if payload:
-                resp = methfunc(url, json=payload)
+                resp = methfunc(url, json=payload, headers=self.headers)
             else:
-                resp = methfunc(url)
+                resp = methfunc(url, headers=self.headers)
         if self.log_timings:
             end_time = time.time()
             log(f"{method} {url}, Status: {resp.status_code}, Time Taken: {end_time - start_time} seconds")
@@ -239,14 +240,14 @@ class DB(object):
 
     def getIndex(self, index_name):
         index_url = f"{self.esurl}/{index_name}"
-        resp = requests.get(index_url)
+        resp = requests.get(index_url, headers=self.headers)
         if resp.status_code == 404:
             return None
         return resp.json().get(index_name, None)
 
     def deleteIndex(self, index_name):
         index_url = f"{self.esurl}/{index_name}"
-        resp = requests.delete(index_url)
+        resp = requests.delete(index_url, headers=self.headers)
 
     def createIndex(self, new_index_name, new_index_info):
         """ Create a new index if it does not exist. """
@@ -266,14 +267,14 @@ class DB(object):
     def putIndex(self, index_name, index_info):
         """ putIndex creates a new index.  If index already exists, this call will fail """
         index_url = f"{self.esurl}/{index_name}"
-        resp = requests.put(index_url, json=index_info)
+        resp = requests.put(index_url, json=index_info, headers=self.headers)
         print(f"Created new index ({index_url}): ", resp.status_code, resp.content)
         if resp.status_code == 200 and resp.json()["acknowledged"]:
             return self.getIndex(index_name)
         raise Exception("Failed to create index: ", resp.json())
 
     def listIndexes(self):
-        return requests.get(self.esurl + "/_aliases").json()
+        return requests.get(self.esurl + "/_aliases", headers=self.headers).json()
 
     def reindexTo(self, dst_index_name, onconflicts="proceed", fixfunc=None):
         """ Indexes the current index into another index. """
@@ -284,7 +285,7 @@ class DB(object):
             "conflicts": onconflicts,
         }
         print(f"Reindexing from {src} -> {dst_index_name}...")
-        resp = requests.post(self.esurl + '/_reindex?refresh=true', json=reindex_json)
+        resp = requests.post(self.esurl + '/_reindex?refresh=true', json=reindex_json, headers=self.headers)
         respjson = resp.json()
         print(f"Reindex ({src} -> {dst_index_name}) response: ", reindex_json, resp.status_code, resp.content)
         failures = respjson.get("failures", [])
@@ -305,7 +306,7 @@ class DB(object):
                 { "add" : { "index" : self.current_index, "alias" : alias_name } }
             ]
         }
-        resp_alias = requests.post(self.esurl + "/_aliases", json=alias_json)
+        resp_alias = requests.post(self.esurl + "/_aliases", json=alias_json, headers=self.headers)
 
     def migrateToIndex(self, index_name, index_info):
         """ Migrates data to another (NEW) index by creating it.  """
@@ -348,7 +349,7 @@ class DB(object):
             dest_index = self.putIndex(dest_index, index_info)
 
         print("EnsuringIndex for: ", org, index_name, index_url, version)
-        resp = requests.get(index_url)
+        resp = requests.get(index_url, headers=self.headers)
         if resp.status_code == 404:
             print("Creating new index for org: ", index_url, org, file=sys.stdout)
             return self.putIndex(index_url, index_table, version)
