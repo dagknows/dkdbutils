@@ -156,6 +156,8 @@ class DB(object):
         else:
             doc, extras = self.validateNewDoc(doc_params)
 
+        # The main db writer
+        path = self.elasticIndex+"/_doc/"
         if self.custom_id_field in doc_params:
             path += doc_params[self.custom_id_field]
         if refresh:
