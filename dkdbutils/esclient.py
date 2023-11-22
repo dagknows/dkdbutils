@@ -50,13 +50,13 @@ class DB(object):
     def esrequest(self, url, method="GET", payload=None, throw_if_error=True):
         start_time = time.time()
         if self.request_maker:
-            resp = self.request_maker(method, url, payload, headers=headers=self.headers)
+            resp = self.request_maker(method, url, payload, headers=self.esreq_headers)
         else:
             methfunc = getattr(requests, method.lower())
             if payload:
-                resp = methfunc(url, json=payload, headers=self.headers)
+                resp = methfunc(url, json=payload, headers=self.esreq_headers)
             else:
-                resp = methfunc(url, headers=self.headers)
+                resp = methfunc(url, headers=self.esreq_headers)
         if self.log_timings:
             end_time = time.time()
             log(f"{method} {url}, Status: {resp.status_code}, Time Taken: {end_time - start_time} seconds")
@@ -95,6 +95,10 @@ class DB(object):
         resp = self.esrequest(path, payload=payload)
         return resp
 
+    def deleteBy(self, query):
+        path = self.elasticIndex+"/_delete_by_query?conflicts=proceed&pretty"
+        return self.esrequest(path, method="POST", payload=query)
+
     def search(self, page_key=None, page_size=None, sort=None, query=None, filter=None, knn=None):
         page_size = page_size or self.maxPageSize
         q = {
@@ -111,6 +115,7 @@ class DB(object):
             q["filter"] = filter
 
         if query: q["query"] = query
+
         path = self.elasticIndex+"/_search/"
         resp = self.esrequest(path, payload=q)
         if "hits" not in resp: return {"results": []}
@@ -240,14 +245,14 @@ class DB(object):
 
     def getIndex(self, index_name):
         index_url = f"{self.esurl}/{index_name}"
-        resp = requests.get(index_url, headers=self.headers)
+        resp = requests.get(index_url, headers=self.esreq_headers)
         if resp.status_code == 404:
             return None
         return resp.json().get(index_name, None)
 
     def deleteIndex(self, index_name):
         index_url = f"{self.esurl}/{index_name}"
-        resp = requests.delete(index_url, headers=self.headers)
+        resp = requests.delete(index_url, headers=self.esreq_headers)
 
     def createIndex(self, new_index_name, new_index_info):
         """ Create a new index if it does not exist. """
@@ -267,14 +272,14 @@ class DB(object):
     def putIndex(self, index_name, index_info):
         """ putIndex creates a new index.  If index already exists, this call will fail """
         index_url = f"{self.esurl}/{index_name}"
-        resp = requests.put(index_url, json=index_info, headers=self.headers)
+        resp = requests.put(index_url, json=index_info, headers=self.esreq_headers)
         print(f"Created new index ({index_url}): ", resp.status_code, resp.content)
         if resp.status_code == 200 and resp.json()["acknowledged"]:
             return self.getIndex(index_name)
         raise Exception("Failed to create index: ", resp.json())
 
     def listIndexes(self):
-        return requests.get(self.esurl + "/_aliases", headers=self.headers).json()
+        return requests.get(self.esurl + "/_aliases", headers=self.esreq_headers).json()
 
     def reindexTo(self, dst_index_name, onconflicts="proceed", fixfunc=None):
         """ Indexes the current index into another index. """
@@ -285,7 +290,7 @@ class DB(object):
             "conflicts": onconflicts,
         }
         print(f"Reindexing from {src} -> {dst_index_name}...")
-        resp = requests.post(self.esurl + '/_reindex?refresh=true', json=reindex_json, headers=self.headers)
+        resp = requests.post(self.esurl + '/_reindex?refresh=true', json=reindex_json, headers=self.esreq_headers)
         respjson = resp.json()
         print(f"Reindex ({src} -> {dst_index_name}) response: ", reindex_json, resp.status_code, resp.content)
         failures = respjson.get("failures", [])
@@ -306,7 +311,7 @@ class DB(object):
                 { "add" : { "index" : self.current_index, "alias" : alias_name } }
             ]
         }
-        resp_alias = requests.post(self.esurl + "/_aliases", json=alias_json, headers=self.headers)
+        resp_alias = requests.post(self.esurl + "/_aliases", json=alias_json, headers=self.esreq_headers)
 
     def migrateToIndex(self, index_name, index_info):
         """ Migrates data to another (NEW) index by creating it.  """
@@ -349,7 +354,7 @@ class DB(object):
             dest_index = self.putIndex(dest_index, index_info)
 
         print("EnsuringIndex for: ", org, index_name, index_url, version)
-        resp = requests.get(index_url, headers=self.headers)
+        resp = requests.get(index_url, headers=self.esreq_headers)
         if resp.status_code == 404:
             print("Creating new index for org: ", index_url, org, file=sys.stdout)
             return self.putIndex(index_url, index_table, version)
