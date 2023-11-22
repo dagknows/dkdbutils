@@ -159,7 +159,7 @@ class DB(object):
         # The main db writer
         path = self.elasticIndex+"/_doc/"
         if self.custom_id_field in doc_params:
-            path += doc_params[self.custom_id_field]
+            path += urllib.parse.quote(doc_params[self.custom_id_field], safe='')
         if refresh:
             path += f"?refresh={refresh}"
         resp = self.esrequest(path, "POST", payload=doc)
