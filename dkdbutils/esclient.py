@@ -81,6 +81,7 @@ class DB(object):
         out["metadata"]["_seq_no"] = resp["_seq_no"]
         out["metadata"]["_primary_term"] = resp["_primary_term"]
         if "_score" in resp: out["metadata"]["_score"] = resp["_score"]
+        if "_explanation" in resp: out["metadata"]["_explanation"] = resp["_explanation"]
         return out
 
     def deleteAll(self):
@@ -104,11 +105,12 @@ class DB(object):
         path = self.elasticIndex+"/_delete_by_query?conflicts=proceed&pretty"
         return self.esrequest(path, method="POST", payload=query)
 
-    def search(self, page_key=None, page_size=None, sort=None, query=None, filter=None, knn=None, log_queries=False, hitcallback=None):
+    def search(self, page_key=None, page_size=None, sort=None, query=None, filter=None, knn=None, log_queries=False, hitcallback=None, explain=False):
         page_size = page_size or self.maxPageSize
         q = {
             "size": page_size,
             "seq_no_primary_term": True,
+            "explain": explain,
         }
         if page_key and page_key > 0:
             q["from"] = page_key
@@ -136,6 +138,7 @@ class DB(object):
             h["_source"]["metadata"]["_seq_no"] = h.get("_seq_no", 0)
             h["_source"]["metadata"]["_primary_term"] = h.get("_primary_term", 0)
             if "_score" in h: h["_source"]["metadata"]["_score"] = h["_score"]
+            if "_explanation" in h: h["_source"]["metadata"]["_explanation"] = h["_explanation"]
             if hitcallback: hitcallback(i, h)
         return {"results": [h["_source"] for h in hits]}
 
