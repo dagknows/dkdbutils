@@ -103,7 +103,7 @@ class DB(object):
         path = self.elasticIndex+"/_delete_by_query?conflicts=proceed&pretty"
         return self.esrequest(path, method="POST", payload=query)
 
-    def search(self, page_key=None, page_size=None, sort=None, query=None, filter=None, knn=None, log_queries=False):
+    def search(self, page_key=None, page_size=None, sort=None, query=None, filter=None, knn=None, log_queries=False, hitcallback=None):
         page_size = page_size or self.maxPageSize
         q = {
             "size": page_size,
@@ -128,12 +128,13 @@ class DB(object):
         hits = resp["hits"]
         if "hits" not in hits: return {"results": []}
         hits = hits["hits"]
-        for h in hits:
+        for i,h in enumerate(hits):
             h["_source"][self.custom_id_field] = h["_id"]
             if "metadata" not in h["_source"]:
                 h["_source"]["metadata"] = {}
             h["_source"]["metadata"]["_seq_no"] = h.get("_seq_no", 0)
             h["_source"]["metadata"]["_primary_term"] = h.get("_primary_term", 0)
+            if hitcallback: hitcallback(i, h)
         return {"results": [h["_source"] for h in hits]}
 
 
