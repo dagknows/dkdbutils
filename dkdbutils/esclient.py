@@ -80,6 +80,7 @@ class DB(object):
             out["metadata"] = {}
         out["metadata"]["_seq_no"] = resp["_seq_no"]
         out["metadata"]["_primary_term"] = resp["_primary_term"]
+        if "_score" in resp: out["metadata"]["_score"] = resp["_score"]
         return out
 
     def deleteAll(self):
@@ -134,6 +135,7 @@ class DB(object):
                 h["_source"]["metadata"] = {}
             h["_source"]["metadata"]["_seq_no"] = h.get("_seq_no", 0)
             h["_source"]["metadata"]["_primary_term"] = h.get("_primary_term", 0)
+            if "_score" in h: h["_source"]["metadata"]["_score"] = h["_score"]
             if hitcallback: hitcallback(i, h)
         return {"results": [h["_source"] for h in hits]}
 
