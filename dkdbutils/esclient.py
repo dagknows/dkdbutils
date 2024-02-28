@@ -24,6 +24,7 @@ class DB(object):
         self.custom_id_field = "id"
         self.maxPageSize = 9999
         self.log_timings = True
+        self.log_queries = False
         self.request_maker = None
 
         self.validateNewDoc = None # lambda(doc_params): print "No new doc validation"
@@ -88,11 +89,13 @@ class DB(object):
     def listAll(self, page_size=None):
         return self.search(page_size=page_size)
 
-    def count(self, query=None, accurate=False):
+    def count(self, query=None, accurate=False, log_queries=False):
         path = self.elasticIndex+"/_search/"
         payload = {"size": 0}
         if accurate: payload["track_total_hits"] = accurate
         if query: payload["query"] = query
+        if self.log_queries or log_queries:
+            log("Count Query: ", payload)
         resp = self.esrequest(path, payload=payload)
         return resp
 
@@ -100,7 +103,7 @@ class DB(object):
         path = self.elasticIndex+"/_delete_by_query?conflicts=proceed&pretty"
         return self.esrequest(path, method="POST", payload=query)
 
-    def search(self, page_key=None, page_size=None, sort=None, query=None, filter=None, knn=None):
+    def search(self, page_key=None, page_size=None, sort=None, query=None, filter=None, knn=None, log_queries=False):
         page_size = page_size or self.maxPageSize
         q = {
             "size": page_size,
@@ -118,6 +121,8 @@ class DB(object):
         if query: q["query"] = query
 
         path = self.elasticIndex+"/_search/"
+        if self.log_queries or log_queries:
+            log("Search Query: ", q)
         resp = self.esrequest(path, payload=q)
         if "hits" not in resp: return {"results": []}
         hits = resp["hits"]
