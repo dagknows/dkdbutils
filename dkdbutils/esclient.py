@@ -105,7 +105,7 @@ class DB(object):
         path = self.elasticIndex+"/_delete_by_query?conflicts=proceed&pretty"
         return self.esrequest(path, method="POST", payload=query)
 
-    def search(self, page_key=None, page_size=None, sort=None, query=None, filter=None, knn=None, log_queries=False, hitcallback=None, explain=False):
+    def search(self, page_key=None, page_size=None, sort=None, query=None, query_filter=None, knn=None, log_queries=False, hitcallback=None, explain=False, aggs=None, es_kwargs=None):
         page_size = page_size or self.maxPageSize
         q = {
             "size": page_size,
@@ -117,11 +117,14 @@ class DB(object):
         if sort: q["sort"] = sort
         if knn:
             q["knn"] = knn
-            if filter or query: q["knn"]["filter"] = filter or query
-        elif filter:
-            q["filter"] = filter
+            # if filter or query: q["knn"]["filter"] = filter or query
+
+        if query_filter:
+            q["filter"] = query_filter
 
         if query: q["query"] = query
+        if aggs: q["aggs"] = aggs
+        for k,v in (es_kwargs or {}).items(): q[k] = v
 
         path = self.elasticIndex+"/_search/"
         if self.log_queries or log_queries:
