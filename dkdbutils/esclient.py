@@ -130,9 +130,11 @@ class DB(object):
         if self.log_queries or log_queries:
             log("Search Query: ", q)
         resp = self.esrequest(path, payload=q)
-        if "hits" not in resp: return {"results": []}
+        out = {"results": []}
+        if resp.get("aggregations", None): out["aggs"] = resp["aggregations"]
+        if "hits" not in resp: return out
         hits = resp["hits"]
-        if "hits" not in hits: return {"results": []}
+        if "hits" not in hits: return out
         hits = hits["hits"]
         for i,h in enumerate(hits):
             h["_source"][self.custom_id_field] = h["_id"]
@@ -143,7 +145,8 @@ class DB(object):
             if "_score" in h: h["_source"]["metadata"]["_score"] = h["_score"]
             if "_explanation" in h: h["_source"]["metadata"]["_explanation"] = h["_explanation"]
             if hitcallback: hitcallback(i, h)
-        return {"results": [h["_source"] for h in hits]}
+        out["results"] = [h["_source"] for h in hits]
+        return out
 
 
     def batchGet(self, ids):
